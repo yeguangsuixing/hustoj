@@ -88,8 +88,8 @@ void call_for_exit(int s) {
 void write_log(const char *fmt, ...) {
 	va_list ap;
 	char buffer[4096];
-//	time_t          t = time(NULL);
-//	int             l;
+ //	time_t          t = time(NULL);
+ //	int             l;
 	sprintf(buffer, "%s/log/client.log", oj_home);
 	FILE *fp = fopen(buffer, "ae+");
 	if (fp == NULL) {
@@ -103,7 +103,6 @@ void write_log(const char *fmt, ...) {
 		printf("%s\n", buffer);
 	va_end(ap);
 	fclose(fp);
-
 }
 
 int after_equal(char * c) {
@@ -141,6 +140,7 @@ void read_int(char * buf, const char * key, int * value) {
 		sscanf(buf2, "%d", value);
 
 }
+//读取配置文件的内容，并设定参数
 // read the configue file
 void init_mysql_conf() {
 	FILE *fp = NULL;
@@ -183,24 +183,27 @@ void init_mysql_conf() {
 		//	fclose(fp);
 	}
 }
-
+/**
+* 启动judge_client，启动前设定了judge_client运行的限制参数，比如CPU运行时间，内存大小等
+* 通过execl来运行judge_client
+*/
 void run_client(int runid, int clientid) {
 	char buf[BUFFER_SIZE], runidstr[BUFFER_SIZE];
 	struct rlimit LIM;
 	LIM.rlim_max = 800;
 	LIM.rlim_cur = 800;
-	setrlimit(RLIMIT_CPU, &LIM);
+	setrlimit(RLIMIT_CPU, &LIM);//CPU 运行时间 800
 
 	LIM.rlim_max = 80 * STD_MB;
 	LIM.rlim_cur = 80 * STD_MB;
-	setrlimit(RLIMIT_FSIZE, &LIM);
+	setrlimit(RLIMIT_FSIZE, &LIM);//文件使用大小 80MB
 
 	LIM.rlim_max = STD_MB << 11;
 	LIM.rlim_cur = STD_MB << 11;
-	setrlimit(RLIMIT_AS, &LIM);
+	setrlimit(RLIMIT_AS, &LIM);//Access Memory 内存 2048MB
 
 	LIM.rlim_cur = LIM.rlim_max = 200;
-	setrlimit(RLIMIT_NPROC, &LIM);
+	setrlimit(RLIMIT_NPROC, &LIM);//进程限制200个
 
 	//buf[0]=clientid+'0'; buf[1]=0;
 	sprintf(runidstr, "%d", runid);
@@ -230,7 +233,9 @@ int executesql(const char * sql) {
 	} else
 		return 0;
 }
-
+/**
+* 初始化mysql连接，成功返回0
+*/
 int init_mysql() {
 	if (conn == NULL) {
 		conn = mysql_init(NULL);		// init the database connection
@@ -251,6 +256,7 @@ int init_mysql() {
 		return executesql("set names utf8");
 	}
 }
+/**执行一条命令，并返回管道描述符*/
 FILE * read_cmd_output(const char * fmt, ...) {
 	char cmd[BUFFER_SIZE];
 
@@ -265,6 +271,7 @@ FILE * read_cmd_output(const char * fmt, ...) {
 
 	return ret;
 }
+/**从一个描述符获取一个整数*/
 int read_int_http(FILE * f) {
 	char buf[BUFFER_SIZE];
 	fgets(buf, BUFFER_SIZE - 1, f);
@@ -374,14 +381,17 @@ bool check_out(int solution_id, int result) {
 		return _check_out_mysql(solution_id, result);
 
 }
+/**
+* work：获取当前需要做的任务(job)，然后
+*/
 int work() {
-//      char buf[1024];
-	static int retcnt = 0;
+	//      char buf[1024];
+	static int retcnt = 0;//本次work共完成的job个数
 	int i = 0;
 	static pid_t ID[100];
-	static int workcnt = 0;
+	static int workcnt = 0;//当前正在执行judge_client的个数
 	int runid = 0;
-	int jobs[max_running * 2 + 1];
+	int jobs[max_running * 2 + 1];//最多允许执行的judge_client的个数
 	pid_t tmp_pid = 0;
 
 	//for(i=0;i<max_running;i++){
@@ -390,17 +400,17 @@ int work() {
 
 	//sleep_time=sleep_tmp;
 	/* get the database info */
-	if (!get_jobs(jobs))
+	if (!get_jobs(jobs))//获取当前的job有多少个
 		retcnt = 0;
 	/* exec the submit */
 	for (int j = 0; jobs[j] > 0; j++) {
 		runid = jobs[j];
-		if (runid % oj_tot != oj_mod)
+		if (runid % oj_tot != oj_mod)//猜测：通过取余的方式判断是否由当前进程处理该job
 			continue;
 		if (DEBUG)
 			write_log("Judging solution %d", runid);
 		if (workcnt >= max_running) {           // if no more client can running
-			tmp_pid = waitpid(-1, NULL, 0);     // wait 4 one child exit
+			tmp_pid = waitpid(-1, NULL, 0);     // wait 4 one child exit //子进程结束时会返回自己的pid
 			for (i = 0; i < max_running; i++){     // get the client id
 				if (ID[i] == tmp_pid){
 					workcnt--;
@@ -415,6 +425,7 @@ int work() {
 				if (ID[i] == 0)
 					break;    // got the client id
 		}
+		//以上会设定好变量i，用于记录
 		if(i<max_running){
 			if (workcnt < max_running && check_out(runid, OJ_CI)) {
 				workcnt++;
@@ -431,7 +442,7 @@ int work() {
 			}
 		}
 	}
-	while ((tmp_pid = waitpid(-1, NULL, WNOHANG)) > 0) {
+	while ((tmp_pid = waitpid(-1, NULL, WNOHANG)) > 0) {//等待所有的子进程结束
 		for (i = 0; i < max_running; i++){     // get the client id
 			if (ID[i] == tmp_pid){
 			
@@ -453,7 +464,7 @@ int work() {
 	//free(jobs);
 	return retcnt;
 }
-
+//锁住一个文件
 int lockfile(int fd) {
 	struct flock fl;
 	fl.l_type = F_WRLCK;
@@ -462,7 +473,9 @@ int lockfile(int fd) {
 	fl.l_len = 0;
 	return (fcntl(fd, F_SETLK, &fl));
 }
-
+/**
+* 检查是否存在运行中的judged，如果是那么直接退出，否则创建lock文件并锁住(flock)
+*/
 int already_running() {
 	int fd;
 	char buf[16];
@@ -486,9 +499,11 @@ int already_running() {
 	write(fd, buf, strlen(buf) + 1);
 	return (0);
 }
-int daemon_init(void)
 
-{
+/**
+* 创建守护子进程并关闭所有文件描述符(包括标准输入输出及错误)
+*/
+int daemon_init(void){
 	pid_t pid;
 
 	if ((pid = fork()) < 0)
@@ -499,8 +514,9 @@ int daemon_init(void)
 
 	/* child continues */
 
+    //脱离shell终端，成为一个新的会话组长
 	setsid(); /* become session leader */
-
+    
 	chdir(oj_home); /* change working directory */
 
 	umask(0); /* clear file mode creation mask */
@@ -520,7 +536,9 @@ int daemon_init(void)
 
 	return (0);
 }
-
+/**
+* 命令行启动方法: judged /home/judged debug once 
+*/
 int main(int argc, char** argv) {
 	DEBUG = (argc > 2);
 	ONCE = (argc > 3);
@@ -530,7 +548,7 @@ int main(int argc, char** argv) {
 		strcpy(oj_home, "/home/judge");
 	chdir(oj_home);    // change the dir
 
-	sprintf(lock_file,"%s/etc/judge.pid",oj_home);
+	sprintf(lock_file,"%s/etc/judge.pid",oj_home);//lock_file = /home/judged/etc/judge.pid
 	if (!DEBUG)
 		daemon_init();
 	if ( already_running()) {
@@ -541,16 +559,16 @@ int main(int argc, char** argv) {
 	}
 	if(!DEBUG)
 		system("/sbin/iptables -A OUTPUT -m owner --uid-owner judge -j DROP");
-//	struct timespec final_sleep;
-//	final_sleep.tv_sec=0;
-//	final_sleep.tv_nsec=500000000;
-	init_mysql_conf();	// set the database info
-	signal(SIGQUIT, call_for_exit);
+	//	struct timespec final_sleep;
+	//	final_sleep.tv_sec=0;
+	//	final_sleep.tv_nsec=500000000;
+	init_mysql_conf();	// set the database info //设置所有程序中需要用到的参数
+	signal(SIGQUIT, call_for_exit);//仅仅设置STOP=true
 	signal(SIGKILL, call_for_exit);
 	signal(SIGTERM, call_for_exit);
 	int j = 1;
 	while (1) {			// start to run
-		while (j && (http_judge || !init_mysql())) {
+		while (j && (http_judge || !init_mysql())) {//通过http方式或者通过mysql直连方式都可以
 
 			j = work();
 

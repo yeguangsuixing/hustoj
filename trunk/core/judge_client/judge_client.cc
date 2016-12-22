@@ -1525,8 +1525,7 @@ void copy_js_runtime(char * work_dir) {
 	execute_cmd("/bin/cp /usr/bin/js24 %s/", work_dir);
 
 }
-void run_solution(int & lang, char * work_dir, int & time_lmt, int & usedtime,
-		int & mem_lmt) {
+void run_solution(int & lang, char * work_dir, int & time_lmt, int & usedtime, int & mem_lmt) {
 	nice(19);
 	// now the user is "judger"
 	chdir(work_dir);
@@ -1547,7 +1546,7 @@ void run_solution(int & lang, char * work_dir, int & time_lmt, int & usedtime,
 	while (setresuid(1536, 1536, 1536) != 0)
 		sleep(1);
 
-//      char java_p1[BUFFER_SIZE], java_p2[BUFFER_SIZE];
+ //      char java_p1[BUFFER_SIZE], java_p2[BUFFER_SIZE];
 	// child
 	// set the limit
 	struct rlimit LIM; // time limit, file limit& memory limit
@@ -2000,9 +1999,10 @@ void clean_workdir(char * work_dir) {
 	}
 
 }
-
-void init_parameters(int argc, char ** argv, int & solution_id,
-		int & runner_id) {
+/**
+* 命令：0:/usr/bin/judge_client 1:runid 2:clientid 3:/home/judge (4:debug 5:LANG_NAME)
+*/
+void init_parameters(int argc, char ** argv, int & solution_id, int & runner_id) {
 	if (argc < 3) {
 		fprintf(stderr, "Usage:%s solution_id runner_id.\n", argv[0]);
 		fprintf(stderr, "Multi:%s solution_id runner_id judge_base_path.\n",
@@ -2064,14 +2064,14 @@ int get_sim(int solution_id, int lang, int pid, int &sim_s_id) {
 }
 void mk_shm_workdir(char * work_dir) {
 	char shm_path[BUFFER_SIZE];
-	sprintf(shm_path, "/dev/shm/hustoj/%s", work_dir);
+	sprintf(shm_path, "/dev/shm/hustoj/%s", work_dir);//								/dev/shm/hustoj/home/judge/run{clientId}/
 	execute_cmd("/bin/mkdir -p %s", shm_path);
-	execute_cmd("/bin/ln -s %s %s/", shm_path, oj_home);
-	execute_cmd("/bin/chown judge %s ", shm_path);
-	execute_cmd("chmod 755 %s ", shm_path);
+	execute_cmd("/bin/ln -s %s %s/", shm_path, oj_home);//		ln -s /home/judge 		/dev/shm/hustoj/home/judge/run{clientId}/
+	execute_cmd("/bin/chown judge %s ", shm_path); ///			chown judge 			/dev/shm/hustoj/home/judge/run{clientId}/
+	execute_cmd("chmod 755 %s ", shm_path);//					chmod 755 				/dev/shm/hustoj/home/judge/run{clientId}/
 	//sim need a soft link in shm_dir to work correctly
 	sprintf(shm_path, "/dev/shm/hustoj/%s/", oj_home);
-	execute_cmd("/bin/ln -s %s/data %s", oj_home, shm_path);
+	execute_cmd("/bin/ln -s %s/data %s", oj_home, shm_path);//	ln -s /home/judge/data 	/dev/shm/hustoj/home/judge
 
 }
 int count_in_files(char * dirpath) {
@@ -2161,6 +2161,9 @@ void print_call_array() {
 	printf("0};\n");
 
 }
+/**
+* 命令：0:/usr/bin/judge_client 1:runid 2:clientid 3:/home/judge (4:debug 5:LANG_NAME)
+*/
 int main(int argc, char** argv) {
 
 	char work_dir[BUFFER_SIZE];
@@ -2172,13 +2175,13 @@ int main(int argc, char** argv) {
 
 	init_parameters(argc, argv, solution_id, runner_id);
 
-	init_mysql_conf();
+	init_mysql_conf();//从配置文件中加载配置，包括数据库连接配置、java运行限制配置
 
 	if (!http_judge && !init_mysql_conn()) {
 		exit(0); //exit if mysql is down
 	}
 	//set work directory to start running & judging
-	sprintf(work_dir, "%s/run%s/", oj_home, argv[2]);
+	sprintf(work_dir, "%s/run%s/", oj_home, argv[2]);//work_dir = /home/judge/run{clientId}/
 
 	clean_workdir(work_dir);
 	if (shm_run)
